@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>בישולון – ספר המתכונים שלי</title>
+<meta name="description" content="ספר מתכונים חכם בעברית: ייבוא מתכונים מקישור, מתמונה או בקול, מצב בישול עם שליטה קולית, רשימת קניות ותכנון ארוחות.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#FAF6F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14110F" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="בישולון">
+<meta name="format-detection" content="telephone=no">
+<meta name="google" content="notranslate">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/rubik-hebrew.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/app.css">
+<script>
+  // apply saved theme before first paint (no flash)
+  try { const t = JSON.parse(localStorage.getItem('bishulon-theme') || '"system"'); if (t !== 'system') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+</head>
+<body>
+<div id="app">
+  <main id="view" tabindex="-1"></main>
+  <nav class="tabbar" aria-label="ניווט ראשי">
+    <a class="tab" href="#/" data-tab="book"><span class="pill" data-ic="book-open"></span>המתכונים</a>
+    <a class="tab" href="#/discover" data-tab="discover"><span class="pill" data-ic="compass"></span>גלו</a>
+    <a class="tab" href="#/plan" data-tab="plan"><span class="pill" data-ic="calendar-days"></span>תכנון</a>
+    <a class="tab" href="#/shop" data-tab="shop"><span class="pill" data-ic="shopping-cart"></span>קניות<span class="badge" id="shop-badge" hidden></span></a>
+    <a class="tab" href="#/chef" data-tab="chef"><span class="pill" data-ic="chef-hat"></span>השף</a>
+  </nav>
+</div>
+<div class="timer-dock" id="timer-dock" aria-live="polite"></div>
+<div id="sheets"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px">כדי להשתמש בבישולון צריך להפעיל JavaScript.</p></noscript>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

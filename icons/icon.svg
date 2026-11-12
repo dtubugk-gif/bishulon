@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C95B33"/>
+      <stop offset="1" stop-color="#A63F1B"/>
+    </linearGradient>
+    <linearGradient id="pot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF6EC"/>
+      <stop offset="1" stop-color="#F3DFC9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="540" r="330" fill="#B54A23" opacity=".55"/>
+  <!-- steam -->
+  <g fill="none" stroke="#FFE7D6" stroke-width="34" stroke-linecap="round" opacity=".9">
+    <path d="M420 330c-28-34 28-56 0-96"/>
+    <path d="M512 310c-28-34 28-56 0-96"/>
+    <path d="M604 330c-28-34 28-56 0-96"/>
+  </g>
+  <!-- lid -->
+  <rect x="286" y="392" width="452" height="44" rx="22" fill="#FFF6EC"/>
+  <rect x="470" y="356" width="84" height="44" rx="20" fill="#FFF6EC"/>
+  <!-- pot body -->
+  <path d="M304 452h416v188c0 74-60 134-134 134H438c-74 0-134-60-134-134z" fill="url(#pot)"/>
+  <!-- handles -->
+  <rect x="226" y="488" width="96" height="44" rx="22" fill="#FFF6EC"/>
+  <rect x="702" y="488" width="96" height="44" rx="22" fill="#FFF6EC"/>
+  <!-- band + leaf -->
+  <rect x="304" y="560" width="416" height="26" fill="#E9CDB3"/>
+  <path d="M512 690c-62 0-96-46-96-46s34-46 96-46 96 46 96 46-34 46-96 46z" fill="#6F8A3E"/>
+  <path d="M430 644h164" stroke="#E2EAD2" stroke-width="10" stroke-linecap="round"/>
+</svg>

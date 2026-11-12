@@ -1,0 +1,30 @@
+{
+  "name": "בישולון – ספר המתכונים שלי",
+  "short_name": "בישולון",
+  "description": "ספר מתכונים חכם בעברית עם מצב בישול בשליטה קולית, רשימת קניות ותכנון ארוחות.",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./#/",
+  "scope": "./",
+  "id": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF6F1",
+  "theme_color": "#FAF6F1",
+  "categories": ["food", "lifestyle"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "רשימת קניות", "url": "./#/shop", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "תכנון ארוחות", "url": "./#/plan", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}
