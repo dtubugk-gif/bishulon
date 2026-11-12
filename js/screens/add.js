@@ -1,9 +1,12 @@
 // "Add a recipe" sheet: from a link, a photo (OCR), by voice, by pasting text, or by hand.
-// Every route ends in the editor pre-filled with what was extracted, so the user can check it.
+// Every route ends with the recipe saved and organised (ingredients checklist, separate steps).
 import { icon, esc } from '../util.js';
 import { sheet, toast } from '../ui.js';
-import { importFromUrl, ocrImage, cleanOcr } from '../import.js';
-import { parseRecipeText } from '../parse.js';
+import { importFromUrl, ocrImage, cleanOcr, stripPostMeta } from '../import.js';
+import { parseRecipeText, splitLongSteps } from '../parse.js';
+import { dishName, goodTitle } from '../dish.js';
+import { put } from '../db.js';
+import { uid } from '../util.js';
 import { Dictation, voiceSupported, dictationToText } from '../voice.js';
 
 export function setDraft(d) { try { sessionStorage.setItem('bishulon-draft', JSON.stringify(d)); } catch { /* full */ } }
@@ -22,29 +25,58 @@ export function openAddSheet(navigate) {
       <button class="menu-item primary" data-k="voice"><span class="mi-ic">${icon('mic', '', 22)}</span><span class="mi-text">בהקלטה קולית<small>הקריאו את המתכון והוא ייכתב לבד</small></span></button>
       <button class="menu-item" data-k="paste"><span class="mi-ic">${icon('clipboard-paste', '', 22)}</span><span class="mi-text">הדבקת טקסט<small>מוואטסאפ, מייל או כל מקום אחר</small></span></button>
       <button class="menu-item" data-k="manual"><span class="mi-ic">${icon('notebook-pen', '', 22)}</span><span class="mi-text">כתיבה ידנית</span></button>
+      <button class="menu-item" data-k="share"><span class="mi-ic">${icon('share', '', 22)}</span><span class="mi-text">ישר מאינסטגרם וטיקטוק<small>הוספת בישולון לתפריט "שיתוף"</small></span></button>
     </div>`,
     mount: (b, close) => b.addEventListener('click', (e) => {
       const k = e.target.closest('[data-k]')?.dataset.k; if (!k) return;
       close();
-      setTimeout(() => ({ link: linkFlow, photo: photoFlow, voice: voiceFlow, paste: pasteFlow, manual: () => navigate('#/edit/new') })[k](navigate), 120);
+      setTimeout(async () => ({ link: linkFlow, photo: photoFlow, voice: voiceFlow, paste: pasteFlow, manual: () => navigate('#/edit/new'), share: async () => (await import('./share-setup.js')).shareSetupSheet() })[k](navigate), 120);
     }),
   });
 }
 
-function toEditor(navigate, draft, how) {
-  setDraft({ ...draft, importedVia: how });
-  navigate('#/edit/new?draft=1');
+/** Keep a copy of the web photo on the phone (social media image links expire after a while). */
+async function keepImage(url) {
+  if (!/^https?:/.test(url || '')) return '';
+  try {
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 9000);
+    const r = await fetch(`https://wsrv.nl/?url=${encodeURIComponent(url)}&w=1280&h=1280&fit=inside&output=jpg&q=80`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return '';
+    const blob = await r.blob();
+    if (!blob.type.startsWith('image/') || blob.size > 2.5e6) return '';
+    return await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result)); fr.onerror = () => res(''); fr.readAsDataURL(blob); });
+  } catch { return ''; }
+}
+
+/** An imported recipe is saved straight into the book, already organised, and opened. */
+async function toEditor(navigate, draft, how) {
+  const clean = (x) => stripPostMeta(x).replace(/\s*\n+\s*/g, ' ').trim();
+  const ingredients = (draft.ingredients || []).map(clean).filter(Boolean);
+  const steps = splitLongSteps((draft.steps || []).map(clean).filter((x) => x.length > 1));
+  if (!ingredients.length && !steps.length) { setDraft({ ...draft, importedVia: how }); navigate('#/edit/new?draft=1'); return; }
+  const title = goodTitle(draft.title) ? draft.title.trim() : dishName({ ...draft, ingredients, steps }, draft.title);
+  const webImg = /^https?:/.test(draft.image || '') ? draft.image : '';
+  const image = webImg ? await keepImage(webImg) : '';
+  const rec = {
+    id: uid(), title, description: draft.description || '', servings: draft.servings || null, prepTime: draft.prepTime || 0, cookTime: draft.cookTime || 0,
+    ingredients, steps, tags: draft.tags || [], notes: draft.notes || '', source: draft.source || null,
+    image, imageUrl: image ? '' : webImg, importedVia: how, favorite: false, rating: 0, cookCount: 0, albums: [], createdAt: Date.now(), updatedAt: Date.now(),
+  };
+  await put('recipes', rec);
+  try { sessionStorage.setItem('bishulon-just-imported', rec.id); } catch { /* ignore */ }
+  navigate(`#/recipe/${rec.id}`);
 }
 
 /* ---------- link ---------- */
-export function linkFlow(navigate, prefill = '') {
+export function linkFlow(navigate, prefill = '', { auto = false } = {}) {
   let ctrl = null;
   sheet({
     title: 'ייבוא מקישור',
     html: `<label class="field"><span>קישור למתכון</span><input type="url" inputmode="url" dir="ltr" placeholder="https://…" value="${esc(prefill)}" autofocus enterkeyhint="go"></label>
       <button class="btn tonal small" data-paste style="margin-top:-6px">${icon('clipboard-paste', '', 18)}הדבקה מהלוח</button>
       <div class="progress" hidden><i></i></div>
-      <p class="hint" data-status style="margin-top:12px">אפשר להדביק קישור מאתר מתכונים או מפוסט ברשתות. נקרא את המתכון ונמלא אותו בשבילכם – תוכלו לתקן לפני השמירה.</p>
+      <p class="hint" data-status style="margin-top:12px">אפשר להדביק קישור מאתר מתכונים או מפוסט ברשתות. נקרא את המתכון, נסדר אותו למצרכים ולשלבים וניתן לו שם – והוא יישמר בספר.</p>
       <div class="sheet-actions"><button class="btn filled block" data-go>${icon('wand-sparkles', '', 20)}ייבוא המתכון</button></div>`,
     mount: (b, close) => {
       const inp = b.querySelector('input');
@@ -63,7 +95,10 @@ export function linkFlow(navigate, prefill = '') {
         status.style.color = ''; status.textContent = 'מחפש את המצרכים ואופן ההכנה…';
         try {
           const d = await importFromUrl(url, { signal: ctrl.signal });
-          close(); toEditor(navigate, d, 'link');
+          go.innerHTML = '<span class="spin"></span>מסדר ושומר…';
+          status.textContent = `נמצאו ${d.ingredients.length} מצרכים ו-${d.steps.length} שלבים`;
+          await toEditor(navigate, d, 'link');
+          close();
         } catch (e) {
           if (e.name === 'AbortError') return;
           prog.hidden = true; bar.style.transition = 'none'; bar.style.transform = 'scaleX(0)';
@@ -78,6 +113,7 @@ export function linkFlow(navigate, prefill = '') {
       };
       go.addEventListener('click', run);
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+      if (auto && prefill) setTimeout(run, 250); // came from the share menu: start right away
     },
     onClose: () => ctrl?.abort(),
   });

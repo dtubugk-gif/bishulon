@@ -268,8 +268,10 @@ const TIP_HEAD = /^(?:[#*\s]*)(טיפ(?:ים)?|הערות?|הערה|דגשים|t
 
 function looksLikeIngredient(line) {
   const t = normQuotes(line.replace(/^[\s•\-–—*·●▪◦]+/, ''));
-  if (t.split(/\s+/).length > 12) return false;
+  const n = t.split(/\s+/).length;
+  if (n > 16) return false;
   if (readQty(t) || readUnit(t)) return true;
+  if (n > 12) return false;
   if (TO_TASTE.test(t) && t.split(/\s+/).length <= 7) return true;
   return false;
 }
@@ -352,7 +354,7 @@ export function parseRecipeText(text) {
   } else {
     // no headers: classify line by line
     let start = 0;
-    if (lines[0] && !looksLikeIngredient(lines[0]) && lines[0].split(/\s+/).length <= 9) { draft.title = lines[0]; start = 1; }
+    if (lines[0] && !looksLikeIngredient(lines[0]) && lines[0].split(/\s+/).length <= 14 && !STEP_VERB.test(lines[0])) { draft.title = lines[0]; start = 1; }
     const ing = [], steps = [], desc = [];
     for (const l of lines.slice(start)) {
       const shortPlain = ing.length && l.split(/\s+/).length <= 4 && !STEP_VERB.test(l) && !/[.!?]$/.test(l);
@@ -373,6 +375,23 @@ export function parseRecipeText(text) {
     if (secs >= 60) draft.cookTime = Math.round(secs / 60);
   }
   return draft;
+}
+
+/** Long steps that hold several actions are split into separate steps (sentence by sentence). */
+export function splitLongSteps(steps) {
+  const out = [];
+  for (const st of steps || []) {
+    const s = String(st).trim();
+    if (s.length < 170) { out.push(s); continue; }
+    const parts = s.replace(/([.!?])\s+(?=\S)/g, '$1').split('').map((x) => x.trim()).filter(Boolean);
+    if (parts.length < 2) { out.push(s); continue; }
+    let cur = '';
+    for (const p of parts) {
+      if (cur && (cur.length + p.length > 160 || cur.length > 70)) { out.push(cur); cur = p; } else cur = cur ? `${cur} ${p}` : p;
+    }
+    if (cur) out.push(cur);
+  }
+  return out;
 }
 
 /** Recipe object → plain shareable text. */

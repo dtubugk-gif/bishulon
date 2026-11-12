@@ -492,3 +492,36 @@ html.vt-back::view-transition-new(root) { animation-name: vt-in-back; }
   .art.hero { height: 220px; }
   .ing, .step { break-inside: avoid; }
 }
+
+/* imported-recipe confirmation bar */
+.import-bar { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; padding: 6px 8px 6px 14px; padding-inline: 14px 8px; border-radius: var(--r-l); background: var(--accent-container); color: var(--on-accent-container); font-size: 14px; position: relative; z-index: 5; animation: rise 420ms var(--ease-out) both; }
+.import-bar .grow { flex: 1; min-width: 0; }
+.import-bar .btn.text { color: var(--on-accent-container); min-height: 40px; padding: 0 10px; text-decoration: underline; text-underline-offset: 3px; }
+
+/* steps you can tick off */
+.step { cursor: pointer; transition: opacity var(--m-default-effects), background var(--m-fast-effects); }
+.step:active { background: var(--surface-2); }
+button.step-n { position: relative; border: 2px solid transparent; transition: background var(--m-fast-effects), transform var(--m-fast-spatial); }
+.step-n .sc { display: none; }
+.step.done .step-n { background: var(--accent); color: #fff; transform: scale(1.04); }
+.step.done .step-n .sn { display: none; }
+.step.done .step-n .sc { display: block; }
+.step.done .step-t { opacity: .5; text-decoration: line-through; text-decoration-thickness: 1.5px; text-decoration-color: color-mix(in srgb, var(--on-surface) 45%, transparent); }
+
+/* share-menu setup guide */
+.guide-h { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; margin: 14px 0 6px; color: var(--primary); }
+.guide { margin: 0 0 12px; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 10px; line-height: 1.6; }
+.guide li::marker { color: var(--primary); font-weight: 700; }
+.guide .ic { display: inline; vertical-align: -3px; }
+.copyable { display: inline-block; margin-top: 4px; padding: 2px 10px; border-radius: 8px; background: var(--surface-2); border: 1px dashed var(--outline-strong); cursor: copy; }
+
+/* "import the recipe you shared" pill (iPhone, after coming back from Instagram/TikTok) */
+.paste-pill { position: fixed; z-index: 70; top: calc(env(safe-area-inset-top) + 10px); inset-inline: 0; margin: 0 auto; width: max-content; max-width: calc(100% - 32px);
+  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px 0 18px; padding-inline: 18px 8px; border-radius: 999px;
+  background: var(--primary); color: var(--on-primary); font-weight: 600; font-size: 16px; box-shadow: var(--shadow-2);
+  transform: translateY(-140%); transition: transform var(--m-default-spatial); }
+.paste-pill.show { transform: none; }
+.paste-pill .pp-x { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.18); }
+
+/* recipes imported in English (or mixed) read left-to-right, Hebrew stays right-to-left */
+.step-t, .cs-t, .ing-text, .notes-box, .detail-title p { unicode-bidi: plaintext; text-align: start; }

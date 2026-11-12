@@ -1,6 +1,7 @@
 // Import a recipe from a web link (recipe sites, Instagram/TikTok/YouTube captions),
 // from a photo (on-device OCR, Hebrew + English) or from plain text.
 import { parseRecipeText, findServings, isoMinutes } from './parse.js';
+import { dishName, goodTitle } from './dish.js';
 
 const READER = 'https://r.jina.ai/'; // public page reader: fetches the page for us (sites block direct cross-site reads)
 // where the recipe ends and the rest of the page begins
@@ -88,17 +89,75 @@ function meta(doc, ...names) {
   return '';
 }
 
+const EMOJI = /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}\u{20E3}]/gu;
+const jsonStr = (s) => { try { return JSON.parse(`"${s}"`); } catch { return ''; } };
+const SOCIAL = { 'instagram.com': 'Instagram', 'tiktok.com': 'TikTok', 'youtube.com': 'YouTube', 'youtu.be': 'YouTube', 'facebook.com': 'Facebook', 'fb.watch': 'Facebook', 'pinterest.com': 'Pinterest', 'pin.it': 'Pinterest', 'x.com': 'X', 'twitter.com': 'X', 'threads.net': 'Threads' };
+export const socialOf = (url) => { try { const h = new URL(url).hostname.replace(/^(www|m|vm|vt)\./, ''); return Object.entries(SOCIAL).find(([d]) => h === d || h.endsWith('.' + d))?.[1] || ''; } catch { return ''; } };
+
+/** The full caption / description of a social post, from the data embedded in the page. */
+function socialCaption(html, doc) {
+  const pick = (re) => { const m = html.match(re); return m ? jsonStr(m[1]) : ''; };
+  const all = (re) => [...html.matchAll(re)].map((m) => jsonStr(m[1])).filter(Boolean);
+  let og = meta(doc, 'og:description', 'description', 'twitter:description');
+  const ig = og.match(/^[\d,.KkMm]+ likes?, [\d,.KkMm]+ comments? - [^:]+:\s*"?([\s\S]*?)"?\.?$/);
+  if (ig) og = ig[1];
+  // pages also embed other posts (suggestions): use the caption that matches this post's own preview text
+  const keySrc = og || (meta(doc, 'og:title') || doc.title || '').replace(/^.*? on (Instagram|TikTok)\s*:\s*"?/i, '');
+  const key = keySrc.replace(EMOJI, '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  const clean = (c) => c.replace(EMOJI, '').replace(/\s+/g, ' ').trim();
+  const same = (c) => key.length > 10 && clean(c).startsWith(key.slice(0, 30));
+  const longest = (arr) => arr.sort((a, b) => b.length - a.length)[0] || '';
+  const igCaps = all(/"caption":\{[^{}]*?"text":"((?:[^"\\]|\\.)*)"/g);            // Instagram
+  const ttDescs = all(/"desc":"((?:[^"\\]|\\.)*)"/g);                                  // TikTok
+  const caption =
+    igCaps.find(same) || longest(ttDescs.filter(same)) ||
+    pick(/"shortDescription":"((?:[^"\\]|\\.)*)"/) ||                                   // YouTube
+    pick(/"description":\{"simpleText":"((?:[^"\\]|\\.)*)"/) ||                          // YouTube (alt)
+    longest(ttDescs) || (key.length > 10 ? '' : igCaps[0]) || '';
+  const author = pick(/"username":"([\w.]{2,40})"/) || pick(/"uniqueId":"([\w.]{2,40})"/) || pick(/"ownerChannelName":"((?:[^"\\]|\\.){1,60})"/) || pick(/"author":"((?:[^"\\]|\\.){1,60})"/);
+  const cover = pick(/"(?:originCover|cover|dynamicCover)":"(https:[^"]+)"/);
+  return { text: caption.length >= og.length ? caption : og, author, cover };
+}
+
+const MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December';
+/** Remove "123 likes, 4 comments - user on November 11, 2026:" and similar wrappers around a caption. */
+export function stripPostMeta(t) {
+  return String(t || '')
+    .replace(/^\s*[\d,.KkMm]+\s+likes?,\s*[\d,.KkMm]+\s+comments?\s*[-–]\s*/i, '')
+    .replace(/^\s*[\d,.]+\s*לייקים?,?\s*[\d,.]+\s*תגובות?\s*[-–]\s*/, '')
+    .replace(new RegExp(`\\s*[-–—]?\\s*@?[\\w.]{2,30}\\s+on\\s+(?:${MONTHS})\\s+\\d{1,2},\\s*\\d{4}\\s*:?\\s*`, 'gi'), '\n')
+    .replace(/\s*[-–—]?\s*@?[\w.]{2,30}\s+ב-?\s*\d{1,2}\s+ב[֐-׿]+\s+\d{4}\s*:?\s*/g, '\n')
+    .replace(/^\s*["“”]+|["“”]+\.?\s*$/g, '')
+    .trim();
+}
+
+/** Captions are often one long line: break bullets, numbers and headers onto their own lines. */
+export function unflattenCaption(t) {
+  let s = stripPostMeta(t).replace(/\r/g, '').replace(/#[\p{L}\d_]+/gu, ' ').replace(/\*{1,2}([^*\n]+)\*{1,2}/g, '$1').replace(EMOJI, ' ').replace(/[ \t]+/g, ' ');
+  s = s.replace(/\s*[•●▪◦✔✅➡️👉]\s*/g, '\n');
+  if ((s.match(/\s[-–]\s/g) || []).length >= 3) s = s.replace(/\s+[-–]\s+(?=[\d½¼¾⅓⅔\p{L}])/gu, '\n');
+  // section headers, with or without a colon ("Ingredients - 3lb…", "מצרכים: 2 כוסות…")
+  s = s.replace(/(^|\s)(ingredients|instructions|directions|method|preparation|מצרכים|רכיבים|מרכיבים|אופן ההכנה|אופן הכנה|הוראות הכנה|דרך ההכנה)(?:\s*:\s*|\s*(?=\n|[-–•]\s|\d))/giu, '\n$2:\n');
+  s = s.replace(/\s+(?=(?:step|שלב)\s*\d+\b)/giu, '\n');
+  s = s.replace(/\s+(?=\d{1,2}[.)]\s+[\p{L}*])/gu, '\n');
+  return s.split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter((l) => l && !/^[.\-–_—·\s]+$/.test(l)).join('\n');
+}
+
+/** A short title from the caption's first line ("recipe below 👇" etc. removed). */
+function captionTitle(caption) {
+  const first = String(caption || '').replace(EMOJI, ' ').split(/\n|[.!?]\s/)[0] || '';
+  return first.replace(/\b(full )?recipe (below|in (the )?(caption|comments|bio))\b.*$/i, '').replace(/(המתכון|מתכון) (למטה|בתגובות|בתיאור).*$/, '')
+    .replace(/[:\-–\s]+$/, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+}
+
 /** Recipe text inside a page (caption / article). Returns a draft or null. */
 function fromPageText(html, url, lenient = false) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const title = meta(doc, 'og:title', 'twitter:title') || doc.title || '';
-  const image = meta(doc, 'og:image', 'twitter:image');
-  // social captions live in og:description (Instagram, TikTok, Facebook)
-  let caption = meta(doc, 'og:description', 'description', 'twitter:description');
-  const yt = html.match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
-  if (yt) { try { caption = JSON.parse(`"${yt[1]}"`); } catch { /* keep og */ } }
-  const ig = caption.match(/^[\d,.KkMm]+ likes?, [\d,.KkMm]+ comments? - [^:]+:\s*"?([\s\S]*?)"?\.?$/);
-  if (ig) caption = ig[1];
+  const social = socialOf(url);
+  const sc = socialCaption(html, doc);
+  const image = meta(doc, 'og:image', 'twitter:image') || sc.cover || '';
+  const caption = social ? unflattenCaption(sc.text) : sc.text;
   const candidates = [];
   if (caption && caption.length > 60) candidates.push(caption);
   doc.querySelectorAll('script,style,nav,header,footer,aside,form,noscript').forEach((n) => n.remove());
@@ -117,21 +176,62 @@ function fromPageText(html, url, lenient = false) {
     const slice = sl.join('\n');
     const d = parseRecipeText(slice);
     // a short line without punctuation after real steps = tags / headlines, not a step
-    const stop = d.steps.findIndex((st, i) => i >= 2 && st.length < 45 && !/[.!:,)]$/.test(st) && !/^[\p{L}]+(ים|ות|ו)(\s|$)/u.test(st));
+    const stop = social && c === caption ? -1 : d.steps.findIndex((st, i) => i >= 2 && st.length < 45 && !/[.!:,)]$/.test(st) && !/^[\p{L}]+(ים|ות|ו)(\s|$)/u.test(st));
     if (stop > 0) d.steps = d.steps.slice(0, stop);
     if ((d.ingredients.length >= 2 || lenient) && d.steps.length >= 1) {
       const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
-      d.title = (at >= 0 ? '' : d.title) || title.replace(/\s*[|\-–]\s*[^|\-–]+$/, '').trim() || d.title;
-      d.image = image; d.author = host;
+      if (social && c === caption) {
+        d.title = captionTitle(caption) || d.title || `מתכון מ${social}`;
+        d.author = sc.author ? `@${sc.author.replace(/^@/, '')} · ${social}` : social;
+      } else {
+        d.title = (at >= 0 ? '' : d.title) || title.replace(/\s*[|\-–]\s*[^|\-–]+$/, '').trim() || d.title;
+        d.author = host;
+      }
+      d.title = d.title.replace(EMOJI, '').replace(/\s+/g, ' ').trim();
+      d.image = image;
       return d;
     }
   }
   return null;
 }
 
+/** Instagram: the post's embed page holds the full caption, creator and photo, and opens reliably. */
+async function fromInstagramEmbed(url, signal) {
+  const code = url.match(/instagram\.com\/(?:[\w.]+\/)?(?:p|reels?|tv)\/([\w-]{5,})/i)?.[1];
+  if (!code) return null;
+  let html;
+  try { html = await fetchHtml(`https://instagram.com/p/${code}/embed/captioned/`, signal); } catch (e) { if (e.name === 'AbortError') throw e; return null; }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const cap = doc.querySelector('.Caption');
+  let text = '';
+  let author = doc.querySelector('.CaptionUsername, .UsernameText')?.textContent?.trim() || '';
+  if (cap) {
+    const c = cap.cloneNode(true);
+    c.querySelectorAll('.CaptionUsername, .CaptionComments, .CaptionCommentsText').forEach((n) => n.remove());
+    c.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+    text = c.textContent || '';
+  }
+  if (!text.trim()) {
+    const m = html.match(/"edge_media_to_caption":\{"edges":\[\{"node":\{"text":"((?:[^"\\]|\\.)*)"/) || html.match(/\\"edge_media_to_caption\\":\{\\"edges\\":\[\{\\"node\\":\{\\"text\\":\\"((?:[^"\\]|\\\\.)*?)\\"/);
+    if (m) text = jsonStr(m[1].replace(/\\\\/g, '\\')) || '';
+  }
+  if (!text.trim()) return null;
+  const d = parseRecipeText(unflattenCaption(text));
+  if (!d.ingredients.length && !d.steps.length) return null;
+  const img = doc.querySelector('img.EmbeddedMediaImage')?.getAttribute('src') || '';
+  d.title = captionTitle(unflattenCaption(text)) || d.title;
+  d.image = img;
+  d.author = author ? `@${author.replace(/^@/, '')} · Instagram` : 'Instagram';
+  return d;
+}
+
 export async function importFromUrl(url, { signal } = {}) {
   url = url.trim();
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  if (/instagram\.com\//i.test(url)) {
+    const ig = await fromInstagramEmbed(url, signal);
+    if (ig) return finishDraft(ig, url);
+  }
   let html = '';
   try { html = await fetchHtml(url, signal); } catch (e) {
     if (e.name === 'AbortError') throw e;
@@ -160,8 +260,23 @@ export async function importFromUrl(url, { signal } = {}) {
       if (d.ingredients.length >= 2) { d.title = (tm?.[1] || d.title).replace(/\s*[|\-–]\s*[^|\-–]+$/, ''); draft = d; }
     } catch (e) { if (e.name === 'AbortError') throw e; }
   }
-  if (!draft) throw new Error(html ? 'no-recipe' : 'network');
+  if (!draft) {
+    if (/instagram\.com\//i.test(url)) throw new Error('blocked');
+    throw new Error(html ? 'no-recipe' : 'network');
+  }
+  return finishDraft(draft, url);
+}
+
+/** Shared clean-up for every web import: tidy text, name the dish, attach the source. */
+function finishDraft(draft, url) {
   draft.title = cleanTitle(draft.title);
+  // leftovers like "@user on November 11, 2026" inside steps / ingredients
+  const meta2 = (s) => stripPostMeta(s).replace(/\n+/g, ' ').trim();
+  draft.steps = (draft.steps || []).map(meta2).filter((s) => s.length > 1);
+  draft.ingredients = (draft.ingredients || []).map(meta2).filter(Boolean);
+  // name the dish, not the creator or the caption
+  if (socialOf(url) || !goodTitle(draft.title)) draft.title = dishName(draft, draft.title);
+  if (/[A-Z]{3}/.test(draft.title) && draft.title === draft.title.toUpperCase()) draft.title = draft.title.charAt(0) + draft.title.slice(1).toLowerCase();
   draft.steps = (draft.steps || []).slice(0, 30);
   draft.ingredients = (draft.ingredients || []).slice(0, 60);
   let host = '';

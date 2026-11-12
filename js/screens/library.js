@@ -65,6 +65,16 @@ function installBanner() {
   </div>`;
 }
 
+function shareBanner() {
+  if (getKV('shareGuideSeen', false) || getKV('shareBannerDismissed', false)) return '';
+  return `<div class="install">
+    <span class="app-icon" style="display:grid;place-items:center;background:var(--primary-container);color:var(--on-primary-container)">${icon('share', '', 24)}</span>
+    <div class="grow"><b>שמירה ישר מאינסטגרם וטיקטוק</b>הוסיפו את בישולון לתפריט "שיתוף"</div>
+    <button class="btn text small" data-act="share-setup">איך?</button>
+    <button class="icon-btn" data-act="dismiss-share" aria-label="הסתרה">${icon('x', '', 20)}</button>
+  </div>`;
+}
+
 function grid(list, album) {
   return `<div class="grid stagger">${list.map((r) => recipeCard(r, `#/recipe/${encodeURIComponent(r.id)}`)).join('')}</div>`;
 }
@@ -104,7 +114,7 @@ export function render({ album = '' }) {
       <div class="grow"><div class="big-title" style="padding:8px 0 0"><p>${greeting()}</p><h1>המתכונים שלי</h1></div></div>
       <a class="icon-btn" href="#/settings" aria-label="הגדרות">${icon('settings')}</a>
     </div>
-    ${installBanner()}
+    ${installBanner() || shareBanner()}
     <div class="search" style="position:sticky">
       <label class="search-box">${icon('search', '', 20)}
         <input type="search" id="q" placeholder="חיפוש לפי שם, מצרך או תגית…" value="${esc(query)}" enterkeyhint="search" autocomplete="off">
@@ -134,6 +144,8 @@ export function render({ album = '' }) {
         const act = b.dataset.act;
         if (act === 'add') openAddSheet(navigate);
         else if (act === 'clear-q') { query = ''; q.value = ''; refresh(); q.focus(); }
+        else if (act === 'share-setup') { (await import('./share-setup.js')).shareSetupSheet(); }
+        else if (act === 'dismiss-share') { await setKV('shareBannerDismissed', true); b.closest('.install').remove(); }
         else if (act === 'dismiss-install') { await setKV('installDismissed', true); b.closest('.install').remove(); }
         else if (act === 'sort') {
           sheet({

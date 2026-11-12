@@ -3,6 +3,7 @@ import { state, put, getRecipe } from '../db.js';
 import { icon, esc, uid, imageToDataURL } from '../util.js';
 import { toast, confirmSheet } from '../ui.js';
 import { takeDraft, clearDraft } from './add.js';
+import { isHeaderLine, cleanHeader } from '../parse.js';
 
 const VIA = { link: 'יובא מקישור', photo: 'נקרא מצילום', voice: 'נכתב מהקלטה', paste: 'נקרא מטקסט' };
 
@@ -38,11 +39,11 @@ export function render({ id, query }) {
         <label class="field"><span>בישול (דק׳)</span><input name="cookTime" inputmode="numeric" value="${esc(r.cookTime || '')}" placeholder="30"></label>
       </div>
       <label class="field"><span>מצרכים</span>
-        <textarea name="ingredients" dir="auto" rows="8" placeholder="מצרך בכל שורה, הכמות בהתחלה:&#10;2 כוסות קמח&#10;1/2 כפית מלח&#10;## לציפוי&#10;100 גרם שוקולד">${esc((r.ingredients || []).join('\n'))}</textarea>
-        <small>שורה שמתחילה ב-## היא כותרת (למשל "## לרוטב"). כך הכמויות יתעדכנו כשמשנים מספר מנות.</small></label>
+        <textarea name="ingredients" dir="auto" rows="8" placeholder="2 כוסות קמח&#10;1/2 כפית מלח&#10;לציפוי:&#10;100 גרם שוקולד">${esc((r.ingredients || []).map((l) => (/^##/.test(l) ? `${l.replace(/^#+\s*/, '')}:` : l)).join('\n'))}</textarea>
+        </label>
       <label class="field"><span>אופן ההכנה</span>
         <textarea name="steps" dir="auto" rows="10" placeholder="שלב בכל שורה:&#10;מחממים תנור ל-180 מעלות.&#10;מערבבים את כל החומרים.&#10;אופים 35 דקות.">${esc((r.steps || []).join('\n'))}</textarea>
-        <small>זמנים כמו "אופים 35 דקות" יהפכו לכפתור טיימר.</small></label>
+        </label>
       <label class="field"><span>תגיות</span><input name="tags" dir="auto" value="${esc((r.tags || []).join(', '))}" placeholder="חלבי, מהיר, לשבת"></label>
       ${state.albums.length ? `<div class="field"><span>אלבומים</span><div class="tags" id="albums">${state.albums.map((a) => `<button type="button" class="chip" data-album="${a.id}" aria-pressed="${(r.albums || []).includes(a.id)}">${esc(a.name)}</button>`).join('')}</div></div>` : ''}
       <label class="field"><span>הערות וטיפים</span><textarea name="notes" dir="auto" rows="3" placeholder="מה כדאי לזכור בפעם הבאה?">${esc(r.notes || '')}</textarea></label>
@@ -95,7 +96,7 @@ export function render({ id, query }) {
           ...(isNew ? { id: uid(), createdAt: Date.now(), favorite: false, rating: 0, cookCount: 0 } : getRecipe(id)),
           title, description: String(f.get('description') || '').trim(),
           servings: num('servings'), prepTime: num('prepTime') || 0, cookTime: num('cookTime') || 0,
-          ingredients: lines('ingredients').map((l) => l.replace(/^[•\-–*·]\s*/, '')), steps: lines('steps').map((l) => l.replace(/^\d+[.)]\s*/, '')),
+          ingredients: lines('ingredients').map((l) => l.replace(/^[•\-–*·]\s*/, '')).map((l) => (isHeaderLine(l) ? `## ${cleanHeader(l)}` : l)), steps: lines('steps').map((l) => l.replace(/^\d+[.)]\s*/, '')),
           tags: String(f.get('tags') || '').split(/[,،]/).map((t) => t.trim()).filter(Boolean),
           albums, notes: String(f.get('notes') || '').trim(),
           source: sUrl || sName ? { url: sUrl, name: sName } : null,

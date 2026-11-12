@@ -20,6 +20,10 @@ export function render() {
       ${ttsSupported ? `<button class="btn tonal small" data-act="test-voice" style="margin-top:12px">${icon('volume-2', '', 18)}בדיקת קול</button>` : ''}
       ${voiceSupported && isIOS() ? `<div class="notice herb" style="margin-top:12px">${icon('info', '', 20)}<span>באייפון, השליטה הקולית משתמשת בהכתבה של אפל. ודאו ש<b>הגדרות ← Siri ← הכתבה</b> מופעלת ושעברית נמצאת בשפות ההכתבה.</span></div>` : ''}
 
+      <h2>שמירה מאינסטגרם, טיקטוק ויוטיוב</h2>
+      <p class="about">הוסיפו את בישולון לתפריט "שיתוף" – ושמרו מתכון מכל סרטון או אתר בלחיצה.</p>
+      <button class="btn tonal" data-act="share-setup" style="margin-top:10px">${icon('share', '', 18)}הגדרה (דקה אחת)</button>
+
       <h2>מראה</h2>
       <div class="seg" id="theme" style="margin-top:8px">
         <button data-theme="system" aria-pressed="${s.theme === 'system'}">${icon('smartphone', '', 18)}אוטומטי</button>
@@ -47,7 +51,7 @@ export function render() {
       <h2>אזור מסוכן</h2>
       <button class="btn text" data-act="wipe" style="color:var(--error);padding:0">${icon('trash-2', '', 18)}מחיקת כל הנתונים</button>
 
-      <p class="about" style="margin:28px 0 8px;text-align:center">בישולון · גרסה 1.0<br>ספר מתכונים חכם בעברית</p>
+      <p class="about" style="margin:28px 0 8px;text-align:center">בישולון · גרסה 1.2<br>ספר מתכונים חכם בעברית</p>
     </div>`;
 
   return {
@@ -77,6 +81,7 @@ export function render() {
         }
         const b = e.target.closest('[data-act]'); if (!b) return;
         const a = b.dataset.act;
+        if (a === 'share-setup') { (await import('./share-setup.js')).shareSetupSheet(); return; }
         if (a === 'back') history.state?.depth > 0 ? history.back() : navigate('#/', { replace: true });
         else if (a === 'test-voice') {
           if (!hasHebrewVoice()) toast('לא נמצא קול עברי במכשיר. אפשר להוסיף קול בהגדרות הנגישות.');

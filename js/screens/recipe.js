@@ -13,6 +13,8 @@ const servingsMemo = new Map();
 const checkedMemo = new Map();
 export const servingsFor = (id) => servingsMemo.get(id);
 export const checkedFor = (id) => { if (!checkedMemo.has(id)) checkedMemo.set(id, new Set()); return checkedMemo.get(id); };
+const stepsDoneMemo = new Map();
+export const stepsDoneFor = (id) => { if (!stepsDoneMemo.has(id)) stepsDoneMemo.set(id, new Set()); return stepsDoneMemo.get(id); };
 
 export function stepHtml(text, recipeId, stepIdx) {
   const durs = findDurations(text);
@@ -57,6 +59,9 @@ export function render({ id }) {
   let servings = servingsMemo.get(id) || base;
   const factor = () => (base && servings ? servings / base : 1);
   const checked = checkedMemo.get(id) || new Set();
+  const stepsDone = stepsDoneFor(id);
+  let justImported = false;
+  try { justImported = sessionStorage.getItem('bishulon-just-imported') === id; } catch { /* ignore */ }
   checkedMemo.set(id, checked);
   const total = (r.prepTime || 0) + (r.cookTime || 0);
   const albums = state.albums.filter((a) => (r.albums || []).includes(a.id));
@@ -70,10 +75,11 @@ export function render({ id }) {
     </div>
     <article class="screen">
       <div class="detail-hero">${recipeArt(r, 'hero')}</div>
+      ${justImported ? `<div class="import-bar" id="impbar">${icon('circle-check', '', 20)}<span class="grow"><b>נשמר בספר.</b> ${(r.ingredients || []).filter((l) => !/^##/.test(l)).length} מצרכים · ${(r.steps || []).length} שלבים</span><button class="btn text small" data-act="edit">עריכה</button><button class="btn text small" data-act="undo-import">ביטול</button></div>` : ''}
       <div class="detail-title">
         <h1>${esc(r.title)}</h1>
         ${r.description ? `<p>${esc(r.description)}</p>` : ''}
-        ${safeUrl(r.source?.url) ? `<a class="source-link" href="${esc(safeUrl(r.source.url))}" target="_blank" rel="noopener noreferrer">${icon('external-link', '', 16)}${esc(r.source.name || 'למקור המתכון')}</a>` : r.source?.name ? `<p class="cook-stat">${icon('chef-hat', '', 14).replace('class="ic ', 'style="display:inline;vertical-align:-2px" class="ic ')} ${esc(r.source.name)}</p>` : ''}
+        ${safeUrl(r.source?.url) ? `<a class="source-link" href="${esc(safeUrl(r.source.url))}" target="_blank" rel="noopener noreferrer">${icon('external-link', '', 16)}<bdi>${esc(r.source.name || 'למקור המתכון')}</bdi></a>` : r.source?.name ? `<p class="cook-stat">${icon('chef-hat', '', 14).replace('class="ic ', 'style="display:inline;vertical-align:-2px" class="ic ')} ${esc(r.source.name)}</p>` : ''}
         ${(r.tags || []).length || albums.length || r.category ? `<div class="tags">${[r.category, ...(r.tags || [])].filter(Boolean).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}${albums.map((a) => `<a class="tag" href="#/album/${a.id}" style="background:var(--surface-2);color:var(--on-surface-2)">${icon('folder', '', 12).replace('class="ic ', 'style="display:inline;vertical-align:-1px" class="ic ')} ${esc(a.name)}</a>`).join('')}</div>` : ''}
       </div>
       <div class="facts">
@@ -103,7 +109,7 @@ export function render({ id }) {
 
       <section class="block">
         <div class="block-head"><h2>אופן ההכנה</h2><span class="hint">${(r.steps || []).length} שלבים</span></div>
-        <ol class="steps">${(r.steps || []).map((s, i) => `<li class="step"><span class="step-n num">${i + 1}</span><div class="step-t">${stepHtml(s, id, i)}</div></li>`).join('') || '<li class="hint">אין שלבים עדיין.</li>'}</ol>
+        <ol class="steps" id="steps">${(r.steps || []).map((s, i) => `<li class="step ${stepsDone.has(i) ? 'done' : ''}" data-step-i="${i}"><button class="step-n num" data-step-toggle="${i}" aria-pressed="${stepsDone.has(i)}" aria-label="סימון שלב ${i + 1} כבוצע"><span class="sn">${i + 1}</span>${icon('check', 'sc', 18)}</button><div class="step-t">${stepHtml(s, id, i)}</div></li>`).join('') || '<li class="hint">אין שלבים עדיין.</li>'}</ol>
       </section>
 
       ${r.notes || r.tips ? `<section class="block"><div class="block-head"><h2>טיפים והערות</h2></div><div class="notes-box">${esc(r.notes || r.tips)}</div></section>` : ''}
@@ -123,6 +129,14 @@ export function render({ id }) {
       const refreshIngs = () => { ings.innerHTML = ingredientsHtml(r, factor(), checked); const sv = root.querySelector('#sv'); if (sv) sv.textContent = `${fmtQty(servings)} מנות`; };
       const toggleIng = (li) => { const i = +li.dataset.ing; checked.has(i) ? checked.delete(i) : checked.add(i); li.classList.toggle('done', checked.has(i)); li.setAttribute('aria-checked', checked.has(i)); };
       ings.addEventListener('click', (e) => { const li = e.target.closest('[data-ing]'); if (li) toggleIng(li); });
+      root.querySelector('#steps')?.addEventListener('click', (e) => {
+        if (e.target.closest('[data-timer]')) return;
+        const li = e.target.closest('[data-step-i]'); if (!li) return;
+        const i = +li.dataset.stepI;
+        stepsDone.has(i) ? stepsDone.delete(i) : stepsDone.add(i);
+        li.classList.toggle('done', stepsDone.has(i));
+        li.querySelector('[data-step-toggle]').setAttribute('aria-pressed', stepsDone.has(i));
+      });
       ings.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { const li = e.target.closest('[data-ing]'); if (li) { e.preventDefault(); toggleIng(li); } } });
 
       root.addEventListener('click', async (e) => {
@@ -139,6 +153,12 @@ export function render({ id }) {
         const act = b.dataset.act;
         if (act === 'back') { history.state?.depth > 0 ? history.back() : navigate(seed ? '#/discover' : '#/', { replace: true }); }
         else if (act === 'edit') navigate(`#/edit/${id}`);
+        else if (act === 'undo-import') {
+          await remove('recipes', id);
+          try { sessionStorage.removeItem('bishulon-just-imported'); } catch { /* ignore */ }
+          toast('הייבוא בוטל והמתכון נמחק');
+          navigate('#/', { replace: true });
+        }
         else if (act === 'less' || act === 'more-s') {
           const step = servings <= 2 && act === 'less' ? (servings > 1 ? 1 : 0.5) : 1;
           servings = Math.max(0.5, Math.min(99, servings + (act === 'less' ? -step : step)));
@@ -162,7 +182,11 @@ export function render({ id }) {
           if (n != null) await put('recipes', { ...r, notes: n });
         } else if (act === 'more') moreSheet(r, seed, navigate);
       });
-      return () => window.removeEventListener('scroll', onScroll);
+      return () => {
+        window.removeEventListener('scroll', onScroll);
+        // the "saved" bar is shown until the user leaves this recipe
+        if (justImported && !location.hash.includes(`/recipe/${id}`) && !location.hash.includes(`/edit/${id}`)) { try { sessionStorage.removeItem('bishulon-just-imported'); } catch { /* ignore */ } }
+      };
     },
   };
 }

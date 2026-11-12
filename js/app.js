@@ -13,6 +13,7 @@ import * as shop from './screens/shop.js';
 import * as chef from './screens/chef.js';
 import * as settings from './screens/settings.js';
 import * as shared from './screens/shared.js';
+import { initClipboardPickup } from './screens/share-setup.js';
 
 const ROUTES = [
   [/^\/?$/, library, () => ({})],
@@ -191,13 +192,17 @@ export function applyTheme(theme) {
 
 /* ---------------- boot ---------------- */
 async function boot() {
-  try { await load(); } catch (e) {
+  try {
+    // never leave a blank screen if the device storage doesn't answer
+    await Promise.race([load(), new Promise((_, rej) => setTimeout(() => rej(new Error('storage-timeout')), 8000))]);
+  } catch (e) {
     console.error(e);
     $('#view').innerHTML = `<div class="empty"><div class="empty-art">${icon('triangle-alert', '', 40)}</div><h2>לא הצלחנו לפתוח את האחסון</h2><p>ייתכן שהדפדפן במצב פרטי. נסו לפתוח את האפליקציה בחלון רגיל.</p><div class="btns"><button class="btn filled" onclick="location.reload()">נסו שוב</button></div></div>`;
     return;
   }
   applyTheme(getKV('settings', {}).theme || 'system');
   initTabs();
+  initClipboardPickup(navigate);
   initTimerDock();
   initTimers();
   updateBadge();
@@ -213,7 +218,7 @@ async function boot() {
   if (sharedText) {
     const { linkFlow, pasteFlow } = await import('./screens/add.js');
     const link = sharedText.match(/https?:\/\/\S+/)?.[0];
-    if (link) linkFlow(navigate, link); else pasteFlow(navigate, sharedText);
+    if (link) linkFlow(navigate, link, { auto: true }); else pasteFlow(navigate, sharedText);
   }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTopSheet(); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
